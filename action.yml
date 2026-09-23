@@ -27,6 +27,14 @@ inputs:
     description: Vercel environment to pull/build/deploy against.
     required: false
     default: preview
+  neon-env-keys:
+    description: >-
+      Restrict which Neon-sourced variables reach Vercel, one variable name per line
+      (e.g. `AWS_ACCESS_KEY_ID`, not `AWS_*`). A key Neon didn't set is silently omitted.
+      Empty (default) forwards every variable Neon wrote. Use this when Vercel only needs
+      some of what neon.ts declares — Object Storage but not the AI Gateway, say.
+    required: false
+    default: ''
   extra-env:
     description: >-
       Extra environment variables to pass to the Vercel deployment, one

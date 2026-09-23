@@ -19478,6 +19478,20 @@ function unquote(value) {
   return value;
 }
 
+// src/lib/env-filter.ts
+function parseKeyList(content) {
+  return content.split("\n").map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+function filterEnvKeys(env, keys) {
+  if (!keys || keys.length === 0) return env;
+  const allowed = new Set(keys);
+  const filtered = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (allowed.has(key)) filtered[key] = value;
+  }
+  return filtered;
+}
+
 // src/lib/vercel-args.ts
 function buildVercelRuntimeEnvFlags(env) {
   const flags = [];
@@ -19499,6 +19513,7 @@ async function main() {
   const projectId = getInput("neon-project-id", { required: true });
   const vercelToken = getInput("vercel-token", { required: true });
   const vercelEnvironment = getInput("vercel-environment") || "preview";
+  const neonEnvKeys = parseKeyList(getInput("neon-env-keys"));
   const extraEnv = parseDotEnv(getInput("extra-env"));
   const cwd = (0, import_node_path.resolve)(process.cwd(), getInput("working-directory") || ".");
   const branchName = getInput("neon-branch-name") || defaultBranchName();
@@ -19512,7 +19527,10 @@ async function main() {
     cwd,
     { NEON_API_KEY: neonApiKey }
   );
-  const mergedEnv = { ...readNeonEnvFile(cwd), ...extraEnv };
+  const mergedEnv = {
+    ...filterEnvKeys(readNeonEnvFile(cwd), neonEnvKeys),
+    ...extraEnv
+  };
   info(`Building and deploying to Vercel (${vercelEnvironment})`);
   runStreaming(
     "vercel",

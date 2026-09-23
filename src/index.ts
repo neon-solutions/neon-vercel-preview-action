@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseDotEnv } from "./lib/dotenv.js";
+import { filterEnvKeys, parseKeyList } from "./lib/env-filter.js";
 import { buildVercelRuntimeEnvFlags, vercelTargetFlags } from "./lib/vercel-args.js";
 
 /**
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
 	const projectId = core.getInput("neon-project-id", { required: true });
 	const vercelToken = core.getInput("vercel-token", { required: true });
 	const vercelEnvironment = core.getInput("vercel-environment") || "preview";
+	const neonEnvKeys = parseKeyList(core.getInput("neon-env-keys"));
 	const extraEnv = parseDotEnv(core.getInput("extra-env"));
 	const cwd = resolve(process.cwd(), core.getInput("working-directory") || ".");
 	const branchName = core.getInput("neon-branch-name") || defaultBranchName();
@@ -38,9 +40,14 @@ async function main(): Promise<void> {
 		{ NEON_API_KEY: neonApiKey },
 	);
 
-	// Neon's values come first so `extra-env` can override any of them, or add keys Neon
-	// doesn't set at all.
-	const mergedEnv = { ...readNeonEnvFile(cwd), ...extraEnv };
+	// `neon-env-keys` selects which Neon-sourced vars reach Vercel at all (e.g. "Object
+	// Storage, not AI Gateway"); unset means every var Neon wrote passes through. Neon's
+	// (filtered) values come first so `extra-env` can override any of them, or add keys
+	// Neon doesn't set at all.
+	const mergedEnv = {
+		...filterEnvKeys(readNeonEnvFile(cwd), neonEnvKeys),
+		...extraEnv,
+	};
 
 	core.info(`Building and deploying to Vercel (${vercelEnvironment})`);
 	runStreaming(
