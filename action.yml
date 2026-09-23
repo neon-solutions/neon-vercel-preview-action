@@ -43,8 +43,6 @@ inputs:
     default: '.'
 
 outputs:
-  neon-branch-id:
-    description: The Neon branch ID that was created or reconciled.
   neon-branch-name:
     description: The Neon branch name that was created or reconciled.
   deployment-url:

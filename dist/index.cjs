@@ -19479,12 +19479,17 @@ function unquote(value) {
 }
 
 // src/lib/vercel-args.ts
-function buildVercelEnvFlags(env) {
+function buildVercelRuntimeEnvFlags(env) {
   const flags = [];
   for (const [key, value] of Object.entries(env)) {
-    flags.push("-b", `${key}=${value}`, "-e", `${key}=${value}`);
+    flags.push("-e", `${key}=${value}`);
   }
   return flags;
+}
+function vercelTargetFlags(environment) {
+  if (environment === "preview") return [];
+  if (environment === "production") return ["--prod"];
+  return [`--target=${environment}`];
 }
 
 // src/index.ts
@@ -19497,23 +19502,15 @@ async function main() {
   const extraEnv = parseDotEnv(getInput("extra-env"));
   const cwd = (0, import_node_path.resolve)(process.cwd(), getInput("working-directory") || ".");
   const branchName = getInput("neon-branch-name") || defaultBranchName();
-  const neonEnv = { NEON_API_KEY: neonApiKey };
+  const targetFlags = vercelTargetFlags(vercelEnvironment);
   info("Installing neon and vercel CLIs");
   runStreaming("npm", ["install", "--global", "neon@latest", "vercel@latest"], cwd, {});
   info(`Creating/reconciling Neon branch "${branchName}"`);
   runStreaming(
     "neon",
-    [
-      "checkout",
-      branchName,
-      "--create",
-      "--update-existing",
-      "--allow-protected",
-      "--project-id",
-      projectId
-    ],
+    ["checkout", branchName, "--create", "--update-existing", "--project-id", projectId],
     cwd,
-    neonEnv
+    { NEON_API_KEY: neonApiKey }
   );
   const mergedEnv = { ...readNeonEnvFile(cwd), ...extraEnv };
   info(`Building and deploying to Vercel (${vercelEnvironment})`);
@@ -19523,10 +19520,22 @@ async function main() {
     cwd,
     {}
   );
-  runStreaming("vercel", ["build", "--token", vercelToken], cwd, {});
+  runStreaming(
+    "vercel",
+    ["build", "--token", vercelToken, ...targetFlags],
+    cwd,
+    mergedEnv
+  );
   const deploymentUrl = runCapturingStdout(
     "vercel",
-    ["deploy", "--prebuilt", "--token", vercelToken, ...buildVercelEnvFlags(mergedEnv)],
+    [
+      "deploy",
+      "--prebuilt",
+      "--token",
+      vercelToken,
+      ...targetFlags,
+      ...buildVercelRuntimeEnvFlags(mergedEnv)
+    ],
     cwd,
     {}
   ).trim();

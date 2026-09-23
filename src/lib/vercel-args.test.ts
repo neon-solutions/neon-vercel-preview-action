@@ -1,27 +1,37 @@
 import { describe, expect, test } from "vitest";
-import { buildVercelEnvFlags } from "./vercel-args.js";
+import { buildVercelRuntimeEnvFlags, vercelTargetFlags } from "./vercel-args.js";
 
-describe("buildVercelEnvFlags", () => {
-	test("emits one -b and one -e flag pair per key, in insertion order", () => {
-		expect(buildVercelEnvFlags({ A: "1", B: "2" })).toEqual([
-			"-b",
-			"A=1",
+describe("buildVercelRuntimeEnvFlags", () => {
+	test("emits one -e flag per key, in insertion order", () => {
+		expect(buildVercelRuntimeEnvFlags({ A: "1", B: "2" })).toEqual([
 			"-e",
 			"A=1",
-			"-b",
-			"B=2",
 			"-e",
 			"B=2",
 		]);
 	});
 
 	test("an empty map yields no flags", () => {
-		expect(buildVercelEnvFlags({})).toEqual([]);
+		expect(buildVercelRuntimeEnvFlags({})).toEqual([]);
 	});
 
 	test("a value containing '=' is passed through unsplit", () => {
-		expect(buildVercelEnvFlags({ DATABASE_URL: "postgres://h/db?a=b" })).toEqual(
-			["-b", "DATABASE_URL=postgres://h/db?a=b", "-e", "DATABASE_URL=postgres://h/db?a=b"],
-		);
+		expect(
+			buildVercelRuntimeEnvFlags({ DATABASE_URL: "postgres://h/db?a=b" }),
+		).toEqual(["-e", "DATABASE_URL=postgres://h/db?a=b"]);
+	});
+});
+
+describe("vercelTargetFlags", () => {
+	test("preview needs no flag", () => {
+		expect(vercelTargetFlags("preview")).toEqual([]);
+	});
+
+	test("production is --prod, not --target=production", () => {
+		expect(vercelTargetFlags("production")).toEqual(["--prod"]);
+	});
+
+	test("any other environment is a --target flag", () => {
+		expect(vercelTargetFlags("staging")).toEqual(["--target=staging"]);
 	});
 });

@@ -52,10 +52,10 @@ declares.
 
 ## Overriding or adding variables
 
-Every variable Neon writes is passed to `vercel deploy` as both a build-time (`-b`) and
-runtime (`-e`) variable by default. Use `extra-env` to override any of them, or add ones
-Neon doesn't set at all — Neon's values are applied first, so a key you supply here always
-wins:
+Every variable Neon writes is available to both the build (as real process env for
+`vercel build`) and the deployed runtime (as `-e` flags on `vercel deploy --prebuilt`).
+Use `extra-env` to override any of them, or add ones Neon doesn't set at all — Neon's
+values are applied first, so a key you supply here always wins:
 
 ```yaml
       - uses: neon-solutions/neon-vercel-preview-action@v1
@@ -95,8 +95,12 @@ wins:
    compute/services take effect at creation), or reconciles it if this PR already has one
    from an earlier push. Writes `.env.local`.
 3. Reads `.env.local`, merges `extra-env` on top.
-4. `vercel pull` → `vercel build` → `vercel deploy --prebuilt`, with the merged env passed
-   as `-b`/`-e` flags.
+4. `vercel pull`, then `vercel build` with the merged env as real process env (build-time
+   values have to be present *during* the build, not passed to `deploy` afterward), then
+   `vercel deploy --prebuilt` with the merged env as `-e` runtime flags.
+
+`vercel-environment: production` passes `--prod` to `build`/`deploy`; any value other than
+`preview`/`production` passes `--target=<value>` for a named custom environment.
 
 ## Known limitations
 
@@ -106,6 +110,14 @@ wins:
 - Only ever creates/reconciles one branch; deleting it when the PR closes isn't this
   action's job — pair it with [`delete-branch-action`](https://github.com/neondatabase/delete-branch-action)
   in your `pull_request.closed` handler if you want that.
+- Checkout never passes `--allow-protected`, so if `neon-branch-name` resolves to a branch
+  Neon has marked protected, the action fails rather than reconciling it.
+- The `neon` and `vercel` CLIs are installed at `@latest` on every run — not pinned, so a
+  breaking CLI release could break this action without a version bump here.
+- No live `vercel deploy` has been run against a real Vercel project as part of verifying
+  this action; the CLI invocations follow Vercel's documented CI pattern but the full
+  integration (env actually reaching a real build and a real deployed function) is
+  untested end-to-end.
 
 ## License
 

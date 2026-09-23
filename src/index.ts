@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseDotEnv } from "./lib/dotenv.js";
-import { buildVercelEnvFlags } from "./lib/vercel-args.js";
+import { buildVercelRuntimeEnvFlags, vercelTargetFlags } from "./lib/vercel-args.js";
 
 /**
  * `neon checkout` writes the branch's env here by default — everything the branch's
@@ -22,29 +22,24 @@ async function main(): Promise<void> {
 	const extraEnv = parseDotEnv(core.getInput("extra-env"));
 	const cwd = resolve(process.cwd(), core.getInput("working-directory") || ".");
 	const branchName = core.getInput("neon-branch-name") || defaultBranchName();
-	const neonEnv = { NEON_API_KEY: neonApiKey };
+	const targetFlags = vercelTargetFlags(vercelEnvironment);
 
 	core.info("Installing neon and vercel CLIs");
 	runStreaming("npm", ["install", "--global", "neon@latest", "vercel@latest"], cwd, {});
 
 	core.info(`Creating/reconciling Neon branch "${branchName}"`);
+	// No --allow-protected: this action only ever targets a preview branch it names itself,
+	// so a collision with a protected branch (e.g. a misconfigured neon-branch-name input)
+	// should fail loudly rather than be waved through.
 	runStreaming(
 		"neon",
-		[
-			"checkout",
-			branchName,
-			"--create",
-			"--update-existing",
-			"--allow-protected",
-			"--project-id",
-			projectId,
-		],
+		["checkout", branchName, "--create", "--update-existing", "--project-id", projectId],
 		cwd,
-		neonEnv,
+		{ NEON_API_KEY: neonApiKey },
 	);
 
-	// The env fetched from Neon comes first so `extra-env` can override any of it, or add
-	// keys Neon doesn't set at all.
+	// Neon's values come first so `extra-env` can override any of them, or add keys Neon
+	// doesn't set at all.
 	const mergedEnv = { ...readNeonEnvFile(cwd), ...extraEnv };
 
 	core.info(`Building and deploying to Vercel (${vercelEnvironment})`);
@@ -54,12 +49,28 @@ async function main(): Promise<void> {
 		cwd,
 		{},
 	);
-	runStreaming("vercel", ["build", "--token", vercelToken], cwd, {});
+	// The build step is what actually consumes build-time values (an SSG/ISR page querying
+	// the database, say) — they have to be real env vars on *this* process, not a flag on
+	// the later `deploy --prebuilt` call, which no longer runs a build at all.
+	runStreaming(
+		"vercel",
+		["build", "--token", vercelToken, ...targetFlags],
+		cwd,
+		mergedEnv,
+	);
 	// `vercel deploy`'s stdout is documented to always be the deployment URL; stderr (build
-	// logs) still streams live so a failure is visible without needing --logs.
+	// logs) still streams live so a failure is visible without needing --logs. `-e` here is
+	// the runtime env for the deployed functions — independent from what the build step read.
 	const deploymentUrl = runCapturingStdout(
 		"vercel",
-		["deploy", "--prebuilt", "--token", vercelToken, ...buildVercelEnvFlags(mergedEnv)],
+		[
+			"deploy",
+			"--prebuilt",
+			"--token",
+			vercelToken,
+			...targetFlags,
+			...buildVercelRuntimeEnvFlags(mergedEnv),
+		],
 		cwd,
 		{},
 	).trim();
