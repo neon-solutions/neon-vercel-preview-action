@@ -58,6 +58,33 @@ and writes just `DATABASE_URL` / `DATABASE_URL_UNPOOLED` / `NEON_BRANCH`. Either
 action reads whatever ended up in that file — it never has to know what your `neon.ts`
 declares.
 
+## Limiting which Neon variables reach Vercel
+
+By default every variable Neon writes is forwarded. Use `neon-env-keys` to restrict that
+to specific variable names, one per line — useful when Vercel only needs part of what
+`neon.ts` declares:
+
+```yaml
+      - uses: neon-solutions/neon-vercel-preview-action@v1
+        with:
+          neon-api-key: ${{ secrets.NEON_API_KEY }}
+          neon-project-id: ${{ vars.NEON_PROJECT_ID }}
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          # Object Storage only — the AI Gateway credentials neon.ts also declares
+          # never reach Vercel.
+          neon-env-keys: |
+            DATABASE_URL
+            AWS_ACCESS_KEY_ID
+            AWS_SECRET_ACCESS_KEY
+            AWS_ENDPOINT_URL_S3
+            AWS_REGION
+```
+
+Exact names only, no `AWS_*` globbing — a typo excludes a key rather than silently
+including too much. A name Neon didn't set is silently absent from the result, not an
+error. This only limits what's *forwarded to Vercel*; `neon checkout` still creates every
+service `neon.ts` declares on the branch regardless.
+
 ## Overriding or adding variables
 
 Every variable Neon writes is available to both the build (as real process env for
@@ -85,6 +112,7 @@ values are applied first, so a key you supply here always wins:
 | `vercel-token` | Yes | — | Vercel API token |
 | `neon-branch-name` | No | `preview/<git ref>` | Neon branch to create/checkout |
 | `vercel-environment` | No | `preview` | Vercel environment to pull/build/deploy against |
+| `neon-env-keys` | No | `''` (all) | Variable names, one per line. Restricts which Neon vars reach Vercel |
 | `extra-env` | No | `''` | `KEY=VALUE` lines, one per line. Overrides/adds to Neon's env |
 | `working-directory` | No | `.` | Directory containing `neon.ts` (if any) and the app to deploy |
 
@@ -102,7 +130,7 @@ values are applied first, so a key you supply here always wins:
    `neon.ts` if it doesn't exist yet (evaluating `!branch.exists`-gated policy, so TTL/
    compute/services take effect at creation), or reconciles it if this PR already has one
    from an earlier push. Writes `.env.local`.
-3. Reads `.env.local`, merges `extra-env` on top.
+3. Reads `.env.local`, restricts it to `neon-env-keys` (if set), merges `extra-env` on top.
 4. `vercel pull`, then `vercel build` with the merged env as real process env (build-time
    values have to be present *during* the build, not passed to `deploy` afterward), then
    `vercel deploy --prebuilt` with the merged env as `-e` runtime flags.
