@@ -1,0 +1,53 @@
+name: Neon + Vercel Preview Deploy
+description: >-
+  Create (or reconcile) a Neon preview branch — including any services declared
+  in neon.ts, such as Object Storage buckets — and deploy it to Vercel with the
+  branch's full env injected.
+author: Neon
+branding:
+  icon: upload-cloud
+  color: green
+
+inputs:
+  neon-api-key:
+    description: Neon API key. Store as a repo secret.
+    required: true
+  neon-project-id:
+    description: Neon project ID.
+    required: true
+  vercel-token:
+    description: Vercel API token. Store as a repo secret.
+    required: true
+  neon-branch-name:
+    description: >-
+      Neon branch to create/checkout. Defaults to `preview/<git ref>`, derived
+      from `GITHUB_HEAD_REF` (pull_request) or `GITHUB_REF_NAME` (push).
+    required: false
+  vercel-environment:
+    description: Vercel environment to pull/build/deploy against.
+    required: false
+    default: preview
+  extra-env:
+    description: >-
+      Extra environment variables to pass to the Vercel deployment, one
+      `KEY=VALUE` per line. Merged on top of the variables fetched from Neon —
+      a key that matches one Neon already sets overrides it; any other key is
+      added.
+    required: false
+    default: ''
+  working-directory:
+    description: >-
+      Directory containing `neon.ts` (if any) and the app to deploy. Defaults
+      to the repository root.
+    required: false
+    default: '.'
+
+outputs:
+  neon-branch-name:
+    description: The Neon branch name that was created or reconciled.
+  deployment-url:
+    description: The URL of the resulting Vercel deployment.
+
+runs:
+  using: node24
+  main: dist/index.cjs

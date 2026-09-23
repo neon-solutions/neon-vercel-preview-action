@@ -1,0 +1,22 @@
+{
+  "name": "neon-vercel-preview-action",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Create a Neon preview branch (with any neon.ts-declared services) and deploy it to Vercel with the full branch env injected.",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.0.9"
+  }
+}
