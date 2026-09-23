@@ -27,11 +27,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: neon-solutions/neon-vercel-preview-action@v1
+        id: preview
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         with:
           neon-api-key: ${{ secrets.NEON_API_KEY }}
           neon-project-id: ${{ vars.NEON_PROJECT_ID }}
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
 ```
+
+`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` are required so `vercel pull --yes` can resolve the
+project non-interactively without a committed `.vercel/project.json` — find them by running
+`vercel link` once locally and reading `.vercel/project.json`.
 
 Disable Vercel's native Git integration auto-deploy so this action's deploy is the only
 one that runs (otherwise every push produces two deployments):
